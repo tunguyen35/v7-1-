@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Code Editor Online v4</title>
+
+    <!-- CodeMirror core & themes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/eclipse.min.css">
+
+    <!-- CodeMirror hint addon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; height: 100vh; overflow: hidden; }
+        body.dark-mode { background: #1e1e1e; color: #fff; }
+        .container { display:flex; flex-direction:column; height:100vh; }
+        .header { background:white; padding:10px 15px; border-bottom:1px solid #e0e0e0; display:flex; justify-content:space-between; align-items:center; }
+        body.dark-mode .header { background:#252526; border-bottom-color:#3e3e42; }
+        .header-left { display:flex; align-items:center; gap:10px; }
+        .logo { font-size:18px; font-weight:700; color:#667eea; }
+        .project-name { color:#666; font-size:12px; }
+        body.dark-mode .project-name { color:#ccc; }
+        .header-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .btn { padding:6px 12px; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:12px; transition:all .2s; }
+        .btn-run { background:#e74c3c; color:white; } .btn-run:hover { background:#c0392b; }
+        .btn-clear { background:#95a5a6; color:white; } .btn-clear:hover { background:#7f8c8d; }
+        .btn-copy { background:#3498db; color:white; } .btn-copy:hover { background:#2980b9; }
+        .btn-paste { background:#2ecc71; color:white; } .btn-paste:hover { background:#27ae60; }
+        .btn-theme { background:#f39c12; color:white; } .btn-theme:hover { background:#e67e22; }
+        .btn-upload { background:#9b59b6; color:white; } .btn-upload:hover { background:#8e44ad; }
+        .btn-download { background:#1abc9c; color:white; } .btn-download:hover { background:#16a085; }
+        .main-content { flex:1; display:flex; overflow:hidden; }
+        .editor-section { flex:1; display:flex; flex-direction:column; background:white; border-right:1px solid #e0e0e0; min-width:250px; max-width:80%; }
+        body.dark-mode .editor-section { background:#1e1e1e; border-right-color:#3e3e42; }
+        .tabs { display:flex; background:#f8f9fa; border-bottom:1px solid #e0e0e0; }
+        body.dark-mode .tabs { background:#252526; border-bottom-color:#3e3e42; }
+        .tab { padding:8px 15px; cursor:pointer; background:none; border:none; font-size:13px; color:#666; border-bottom:2px solid transparent; display:flex; align-items:center; gap:5px; position:relative; }
+        body.dark-mode .tab { color:#ccc; }
+        .tab.active { color:#667eea; border-bottom-color:#667eea; font-weight:600; }
+        .tab.html-tab.active { color:#e34c26; border-bottom-color:#e34c26; }
+        .tab.css-tab.active { color:#264de4; border-bottom-color:#264de4; }
+        .tab.js-tab.active { color:#f0db4f; border-bottom-color:#f0db4f; }
+        .tab-name { flex:1; text-align:left; }
+        .tab-edit-btn { opacity:0.5; background:none; border:none; cursor:pointer; font-size:11px; padding:2px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; }
+        .tab:hover .tab-edit-btn { opacity:1; }
+        .tab-name-input { position:absolute; left:8px; top:6px; width:calc(100% - 40px); background:white; border:2px solid #667eea; border-radius:3px; padding:2px 6px; font-size:13px; color:#333; outline:none; font-family:inherit; z-index:10; }
+        body.dark-mode .tab-name-input { background:#2d2d30; border-color:#667eea; color:#ccc; }
+        .editor-wrapper { flex:1; display:flex; overflow:hidden; }
+        .editor-content { display:none; flex:1; overflow:hidden; }
+        .editor-content.active { display:flex; flex-direction:column; }
+        .CodeMirror { height:100% !important; font-size:14px; }
+        .resizer { width:5px; cursor:col-resize; background:#e0e0e0; transition:background .2s; position:relative; z-index:10; }
+        body.dark-mode .resizer { background:#3e3e42; }
+        .resizer:hover { background:#667eea; }
+        .preview-section { flex:1; display:flex; flex-direction:column; background:white; min-width:250px; max-width:80%; }
+        body.dark-mode .preview-section { background:#252526; }
+        .preview-header { padding:8px 15px; background:#f8f9fa; border-bottom:1px solid #e0e0e0; font-weight:600; color:#333; font-size:13px; }
+        body.dark-mode .preview-header { background:#2d2d30; border-bottom-color:#3e3e42; color:#ccc; }
+        iframe { flex:1; border:none; background:white; }
+        .toast { position:fixed; top:20px; right:20px; background:#2ecc71; color:white; padding:12px 20px; border-radius:5px; box-shadow:0 4px 15px rgba(0,0,0,0.2); z-index:1000; animation:slideIn .3s ease-out; }
+        @keyframes slideIn { from { transform:translateX(100%); opacity:0 } to { transform:translateX(0); opacity:1 } }
+        .file-input { display:none; }
+        @media (max-width:768px) {
+            .main-content { flex-direction:column; }
+            .resizer { display:none; }
+            .editor-section { border-right:none; border-bottom:1px solid #e0e0e0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <div class="logo">🚀 CodeEditor v4</div>
+                <div class="project-name" id="projectName">my-project</div>
+            </div>
+
+            <div class="header-right">
+                <button class="btn btn-theme" onclick="toggleTheme()">🌙 Dark</button>
+                <button class="btn btn-upload" onclick="document.getElementById('fileInput').click()">📂 Upload</button>
+                <button class="btn btn-download" onclick="downloadCode()">💾 Download</button>
+                <button class="btn btn-copy" onclick="copyCode()">📋 Copy</button>
+                <button class="btn btn-paste" onclick="pasteCode()">📥 Paste</button>
+                <button class="btn btn-clear" onclick="clearCode()">🗑️ Clear</button>
+                <button class="btn btn-run" onclick="runCode()">▶ RUN</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="editor-section">
+                <div class="tabs">
+                    <button class="tab html-tab active" onclick="switchTab('html')">
+                        <span class="tab-name">index.html</span>
+                        <span class="tab-edit-btn" onclick="event.stopPropagation(); renameTab('html')">🖊</span>
+                    </button>
+                    <button class="tab css-tab" onclick="switchTab('css')">
+                        <span class="tab-name">styles.css</span>
+                        <span class="tab-edit-btn" onclick="event.stopPropagation(); renameTab('css')">🖊</span>
+                    </button>
+                    <button class="tab js-tab" onclick="switchTab('js')">
+                        <span class="tab-name">script.js</span>
+                        <span class="tab-edit-btn" onclick="event.stopPropagation(); renameTab('js')">🖊</span>
+                    </button>
+                </div>
+
+                <div class="editor-wrapper">
+                    <div class="editor-content active" id="html-editor"></div>
+                    <div class="editor-content" id="css-editor"></div>
+                    <div class="editor-content" id="js-editor"></div>
+                </div>
+            </div>
+
+            <div class="resizer" id="resizer"></div>
+
+            <div class="preview-section">
+                <div class="preview-header">📱 Preview</div>
+                <iframe id="output"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" class="file-input" multiple accept=".html,.css,.js">
+
+    <!-- CodeMirror scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/htmlmixed/htmlmixed.min.js"></script>
+
+    <!-- hint addons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/html-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/css-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/javascript-hint.min.js"></script>
+
+    <!-- jszip for zip download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <script>
+        let currentTab = 'html';
+        let uploadMode = 'single';
+        let currentFiles = {
+            html: 'index.html',
+            css: 'styles.css',
+            js: 'script.js'
+        };
+
+        const htmlEditor = CodeMirror(document.getElementById('html-editor'), {
+            mode: 'htmlmixed',
+            theme: 'eclipse',
+            lineNumbers: true,
+            lineWrapping: true,
+            value: `<div class="container">
+    <h1>Hello World!</h1>
+    <p>Welcome to Code Editor</p>
+    <button onclick="changeColor()">Change Color</button>
+</div>`,
+            extraKeys: {"Ctrl-Space": "autocomplete"},
+            hintOptions: {completeSingle: false}
+        });
+
+        const cssEditor = CodeMirror(document.getElementById('css-editor'), {
+            mode: 'css',
+            theme: 'eclipse',
+            lineNumbers: true,
+            lineWrapping: true,
+            value: `* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    text-align: center;
+}
+
+h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+p {
+    font-size: 18px;
+    margin-bottom: 30px;
+}
+
+button {
+    padding: 15px 40px;
+    font-size: 16px;
+    background: white;
+    color: #667eea;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+button:hover {
+    transform: translateY(-2px);
+}`,
+            extraKeys: {"Ctrl-Space": "autocomplete"},
+            hintOptions: {completeSingle: false}
+        });
+
+        const jsEditor = CodeMirror(document.getElementById('js-editor'), {
+            mode: 'javascript',
+            theme: 'eclipse',
+            lineNumbers: true,
+            lineWrapping: true,
+            value: `function changeColor() {
+    const colors = [
+        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+    ];
+    
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    document.body.style.background = randomColor;
+}`,
+            extraKeys: {"Ctrl-Space": "autocomplete"},
+            hintOptions: {completeSingle: false}
+        });
+
+        const output = document.getElementById('output');
+
+        let timeout;
+        function autoRun() {
+            clearTimeout(timeout);
+            timeout = setTimeout(runCode, 1000);
+        }
+        htmlEditor.on('change', autoRun);
+        cssEditor.on('change', autoRun);
+        jsEditor.on('change', autoRun);
+
+        function renameTab(tabType) {
+            const tab = document.querySelector(`.${tabType}-tab`);
+            const tabNameSpan = tab.querySelector('.tab-name');
+            const editBtn = tab.querySelector('.tab-edit-btn');
+            const currentName = currentFiles[tabType];
+
+            tabNameSpan.style.visibility = 'hidden';
+            editBtn.style.visibility = 'hidden';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'tab-name-input';
+            input.value = currentName;
+
+            tab.appendChild(input);
+            input.focus();
+            input.select();
+
+            function finishRenaming() {
+                const newName = input.value.trim();
+                if (newName && newName !== currentName) {
+                    currentFiles[tabType] = newName;
+                    updateTabNames();
+                    showToast('✅ Đã đổi tên tab');
+                }
+
+                input.remove();
+                tabNameSpan.style.visibility = 'visible';
+                editBtn.style.visibility = 'visible';
+            }
+
+            input.addEventListener('blur', finishRenaming);
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    finishRenaming();
+                } else if (e.key === 'Escape') {
+                    input.remove();
+                    tabNameSpan.style.visibility = 'visible';
+                    editBtn.style.visibility = 'visible';
+                }
+            });
+        }
+
+        function updateTabNames() {
+            document.querySelector('.html-tab .tab-name').textContent = currentFiles.html;
+            document.querySelector('.css-tab .tab-name').textContent = currentFiles.css;
+            document.querySelector('.js-tab .tab-name').textContent = currentFiles.js;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.editor-content').forEach(e => e.classList.remove('active'));
+
+            if (tab === 'html') {
+                document.querySelector('.html-tab').classList.add('active');
+                document.getElementById('html-editor').classList.add('active');
+                htmlEditor.refresh();
+                htmlEditor.focus();
+            } else if (tab === 'css') {
+                document.querySelector('.css-tab').classList.add('active');
+                document.getElementById('css-editor').classList.add('active');
+                cssEditor.refresh();
+                cssEditor.focus();
+            } else if (tab === 'js') {
+                document.querySelector('.js-tab').classList.add('active');
+                document.getElementById('js-editor').classList.add('active');
+                jsEditor.refresh();
+                jsEditor.focus();
+            }
+        }
+
+        function runCode() {
+            try {
+                const html = htmlEditor.getValue();
+                const css = cssEditor.getValue();
+                const js = jsEditor.getValue();
+
+                const fullCode = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>${css}</style>
+</head>
+<body>
+    ${html}
+    <script>${js}<\/script>
+</body>
+</html>`;
+
+                output.srcdoc = fullCode;
+            } catch (error) {
+                console.error('Lỗi khi chạy code:', error);
+                showToast('❌ Lỗi khi chạy code');
+            }
+        }
+
+        function showToast(message) {
+            const oldToast = document.querySelector('.toast');
+            if (oldToast) oldToast.remove();
+
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        }
+
+        function toggleTheme() {
+            const isDark = document.body.classList.toggle('dark-mode');
+            const theme = isDark ? 'material-darker' : 'eclipse';
+            const btnText = isDark ? '☀️ Light' : '🌙 Dark';
+
+            htmlEditor.setOption('theme', theme);
+            cssEditor.setOption('theme', theme);
+            jsEditor.setOption('theme', theme);
+            document.querySelector('.btn-theme').textContent = btnText;
+        }
+
+        function copyCode() {
+            const editor = currentTab === 'html' ? htmlEditor : currentTab === 'css' ? cssEditor : jsEditor;
+            navigator.clipboard.writeText(editor.getValue()).then(() => {
+                showToast('✅ Đã copy code');
+            }).catch(() => {
+                showToast('❌ Lỗi khi copy');
+            });
+        }
+
+        function pasteCode() {
+            navigator.clipboard.readText().then(text => {
+                const editor = currentTab === 'html' ? htmlEditor : currentTab === 'css' ? cssEditor : jsEditor;
+                editor.setValue(text);
+                showToast('✅ Đã paste code');
+            }).catch(() => {
+                showToast('❌ Lỗi khi paste');
+            });
+        }
+
+        function clearCode() {
+            htmlEditor.setValue('');
+            cssEditor.setValue('');
+            jsEditor.setValue('');
+            output.srcdoc = '';
+            showToast('✅ Đã xóa code');
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            if (files.length === 1 && files[0].name.endsWith('.html')) {
+                uploadMode = 'single';
+            } else {
+                uploadMode = 'multiple';
+            }
+
+            let loadedCount = 0;
+            const totalFiles = files.length;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    if (file.name.endsWith('.html')) {
+                        currentFiles.html = file.name;
+                        htmlEditor.setValue(event.target.result);
+                        document.getElementById('projectName').textContent = file.name.replace('.html', '');
+                    } else if (file.name.endsWith('.css')) {
+                        currentFiles.css = file.name;
+                        cssEditor.setValue(event.target.result);
+                    } else if (file.name.endsWith('.js')) {
+                        currentFiles.js = file.name;
+                        jsEditor.setValue(event.target.result);
+                    }
+
+                    updateTabNames();
+                    loadedCount++;
+
+                    if (loadedCount === totalFiles) {
+                        showToast(`✅ Đã upload ${totalFiles} file`);
+                        runCode();
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            e.target.value = '';
+        });
+
+        function downloadCode() {
+            if (uploadMode === 'single') {
+                downloadSingleHTML();
+            } else {
+                downloadAsZip();
+            }
+        }
+
+        function downloadSingleHTML() {
+            const html = htmlEditor.getValue();
+            const css = cssEditor.getValue();
+            const js = jsEditor.getValue();
+
+            const fullHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Project</title>
+    <style>${css}</style>
+</head>
+<body>
+    ${html}
+    <script>${js}<\/script>
+</body>
+</html>`;
+
+            const blob = new Blob([fullHTML], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = currentFiles.html;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+
+            showToast('✅ Đã download HTML file');
+        }
+
+        function downloadAsZip() {
+            const zip = new JSZip();
+
+            zip.file(currentFiles.html, htmlEditor.getValue());
+            zip.file(currentFiles.css, cssEditor.getValue());
+            zip.file(currentFiles.js, jsEditor.getValue());
+
+            zip.generateAsync({ type: 'blob' }).then(function(content) {
+                const url = URL.createObjectURL(content);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'project.zip';
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+
+                showToast('✅ Đã download ZIP file với 3 file');
+            }).catch(function(error) {
+                console.error('Lỗi tạo ZIP:', error);
+                showToast('❌ Lỗi khi tạo ZIP file');
+            });
+        }
+
+        const resizer = document.getElementById('resizer');
+        const editorSection = document.querySelector('.editor-section');
+        const previewSection = document.querySelector('.preview-section');
+        const mainContent = document.querySelector('.main-content');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+
+            const containerRect = mainContent.getBoundingClientRect();
+            const offsetX = e.clientX - containerRect.left;
+            const percentage = (offsetX / containerRect.width) * 100;
+
+            if (percentage >= 25 && percentage <= 75) {
+                editorSection.style.flexBasis = `${percentage}%`;
+                previewSection.style.flexBasis = `${100 - percentage}%`;
+                
+                htmlEditor.refresh();
+                cssEditor.refresh();
+                jsEditor.refresh();
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        function enableAutoHint(editor, opts = {}) {
+            let timer = null;
+            const delay = opts.delay || 500;
+
+            editor.on('inputRead', function(cm, change) {
+                const typed = (change && change.text && change.text.join('')) || '';
+                if (!typed || /^\s+$/.test(typed)) return;
+
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(() => {
+                    try {
+                        cm.showHint({ completeSingle: false });
+                    } catch (e) {
+                    }
+                }, delay);
+            });
+
+            editor.on('blur', function() {
+                const widget = document.querySelector('.CodeMirror-hints');
+                if (widget) widget.style.display = 'none';
+            });
+        }
+
+        enableAutoHint(htmlEditor, { delay: 500 });
+        enableAutoHint(cssEditor, { delay: 400 });
+        enableAutoHint(jsEditor, { delay: 400 });
+
+        setTimeout(() => runCode(), 100);
+    </script>
+</body>
+</html>
